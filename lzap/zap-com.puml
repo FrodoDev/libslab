@@ -1,0 +1,60 @@
+@startuml
+package "zap logging" {
+
+  component Logger
+  component SugaredLogger
+  component Config
+  component Stacktrace
+  component Field
+  component Encoder
+  component AtomicLevel
+
+  interface Core
+  component Entry
+  component CheckedEntry
+  interface WriteSyncer
+
+  component jsonEncoder
+  component consoleEncoder
+
+  component iocore
+  component hooked
+  component tee
+  component sampler
+
+  component lockedWriteSyncer
+  component multiWriteSyncer
+
+  component BufferPool
+
+  Logger --> Config : has
+  Logger --> Stacktrace : uses
+  Logger --> Entry : creates
+  Logger --> CheckedEntry : creates
+
+  CheckedEntry --> Entry : contains
+  CheckedEntry ..> Core : references (multiple)
+  
+  Core --> Encoder : uses
+  Core --> WriteSyncer : writes to
+  Core <|-- iocore
+  Core <|-- hooked
+  Core <|-- tee
+  Core <|-- sampler
+
+  WriteSyncer <|-- lockedWriteSyncer
+  WriteSyncer <|-- multiWriteSyncer
+
+  Encoder <|-- jsonEncoder
+  Encoder <|-- consoleEncoder
+
+  Entry --> Field : contains
+  Entry --> AtomicLevel
+  Entry --> Stacktrace : optional
+
+  BufferPool ..> Core : shared buffer
+  BufferPool ..> Encoder : shared buffer
+  BufferPool ..> Entry : object pool
+
+}
+@enduml

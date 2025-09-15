@@ -1,0 +1,35 @@
+@startuml
+title the flowchart for zap logging
+start
+
+:构造配置 cfg := zap.NewProductionConfig();
+:用配置构建 Logger 实例 log := cfg.Build();
+:用户用 log 打印日志，选择具体的日志等级 lvl，传入 msg、fields 参数，如
+log.Info(msg, field1, field2);
+
+:ce := Logger.check;
+note
+这部分内容请参照文件
+Logger.check.puml
+end note
+
+partition ce.write {
+    floating note: 遍历 ce.cores
+    repeat
+        :buf := core[i].encoder.encode(ent, fields);
+        :clone := _jsonPool.Get(); //写时复制辅助结构
+        :clone.buf := bufferpool.Get(); //复用缓冲池
+        :core[i].writer.write(buf);
+    repeat while (未遍历完 ce.cores)
+}
+
+' 一些细节需要注意：
+' 使用不低于 DPanicLevel 打印的时候，不需要检查 core.Enabled
+' 从 Entry 和 CheckedEntry 的创建可以看出，Log 是日志行为的发起方，而 Entry 和 CheckedEntry 是某一次打印行为的实例。
+' 如果是 Panic 或者 Fatal 打印级别，创建的 CheckedEntry 没有 core，只有 after，也就是在执行写入动作时，它只会执行 after 动作，所以在 log.Check 时，这种打印级别不会添加 caller 和 stack
+' 用 zap 给的 product 或 develop 配置创建的 Logger，分别默认会将 addStack 设置为 Error 和 Warn
+
+stop
+@enduml
+
+

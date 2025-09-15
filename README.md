@@ -4,7 +4,15 @@
 
 try to use variety libs
 
-# zap
+# list of libs
+1. log
+    1. zap
+    2. xxx
+2. proxy
+
+
+
+
 
 主要试验这几个方面
 

@@ -1,0 +1,50 @@
+@startuml
+title the flowchart for write\nstart out by CheckedEntry.Write(fields ...Field)
+start
+if (ce == nil) then (yes)
+    stop
+else (no)
+endif
+
+if (ce.dirty) then (yes)
+    note
+    尽量保证不要使用已经
+    归还的 CheckedEntry
+    end note
+    if (ce.ErrorOutput != nil) then (yes)
+        :fmt.Fprintf(ce.ErrorOutput, "Unsafe CheckedEntry re-use")
+        ce.ErrorOutput.Sync();
+        stop
+    else (no)
+    endif
+else (no)
+endif
+
+:ce.dirty = true;
+repeat
+    partition ce.cores[i].Write(ce.cores[i].Write) {
+        floating note: c 即是 core 的实例
+        :buf, err := c.enc.EncodeEntry(ent, fields);
+        note
+        编码
+        end note
+        :c.out.Write(buf.Bytes());
+        :buf.Free();
+        if (ent.Level > ErrorLevel) then (yes)
+            :c.Sync();
+        else (no)
+        endif
+    }
+repeat while (ce.cores)
+
+if (ce.after != nil) then (yes)
+    :ce.after.OnWrite(ce, fields);
+    floating note: Panic,Fatal级别的日志\n设置的回调函数，在这里执行
+else (no)
+endif
+
+:putCheckedEntry(ce);
+floating note: 将 CheckedEntry 归还到 pool\n获取在 Logger.check.puml 中
+
+stop
+@enduml

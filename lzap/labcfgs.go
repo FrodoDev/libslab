@@ -16,7 +16,6 @@ func LabCfgs() {
 		log.Debug("Lab cfg", fs...)
 		log.Error("Lab cfg", fs...)
 	}
-
 }
 
 func LabSample() {

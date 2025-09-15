@@ -1,0 +1,115 @@
+@startuml
+title the flowchart for\nfunc (log *Logger) check(lvl zapcore.Level, msg string) *zapcore.CheckedEntry
+start
+:const callerSkipOffset = 2;
+note
+callerSkipOffset = 2
+意味着跳过Logger 的
+check 和 Info/Fatal/Check 等
+两层函数
+end note
+
+if (lvl < zapcore.DPanicLevel && !log.core.Enabled(lvl)) then (no)
+    :return nil;
+    note
+    日志等级比 DPanicLevel低，
+    且Entry的日志级别不可用，不打印
+    end note
+    stop
+else (yes)
+endif
+
+:创建 Entry
+ent := Entry{
+    LoggerName: log.name,
+    Time:       log.clock.Now(),
+    Level:      lvl,
+    Message:    msg,
+};
+
+partition 创建 ce(CheckedEntry) {
+if (log.core.Enabled(ent.Level)) then (no)
+    :日志等级不可用
+    ce = nil;
+    note left
+    如果 core 是多个 core 的切片，
+    只有当所有的 core 在检查 Entry
+    的日志级别都不可用时，Check 才
+    会返回 nil
+    end note
+else (yes)
+    :ce := _cePool.Get() // pool
+    ce.reset()
+    ce.Entry = ent
+    ce.cores = append(ce.cores, core);
+endif
+}
+
+:willWrite := ce != nil;
+switch (ent.Level)
+case (zapcore.PanicLevel)
+    :ce := _cePool.Get() // pool
+    ce.reset()
+    ce.Entry = ent
+    ce.after = zapcore.WriteThenPanic;
+case (zapcore.FatalLevel)
+    :ce := _cePool.Get() // pool
+    ce.reset()
+    ce.Entry = ent
+    ce.after = zapcore.WriteThenFatal;
+endswitch
+
+if (willWrite) then (no)
+    :return ce;
+    stop
+else (yes)
+endif
+
+:ce.ErrorOutput = log.errorOutput;
+
+:addStack := log.addStack.Enabled(ce.Level);
+note
+用 zap 的 product 或 develop 配置
+创建的 Logger，分别默认会将
+addStack 设置为 Error 和 Warn
+end note
+if (!log.addCaller && !addStack) then (yes)
+	    :return ce;
+        stop
+else (no)
+endif
+
+partition stack and caller info {
+    :stackDepth := addStack ? stacktrace.Full : stacktrace.First
+    stack := stacktrace.Capture(log.callerSkip+callerSkipOffset, stackDepth)
+    defer stack.Free();
+
+    if (stack.Count() == 0) then (yes)
+        :process error
+        return ce;
+        stop
+    else (no)
+    endif
+
+    :frame, more := stack.Next();
+    if (log.addCaller) then (yes)
+        :ce.Caller = zapcore.EntryCaller{
+			Defined:  frame.PC != 0,
+			PC:       frame.PC,
+			File:     frame.File,
+			Line:     frame.Line,
+			Function: frame.Function,
+		};
+    else (no)
+    endif
+
+    if (addStack) then (yes)
+        :buffer := bufferpool.Get() // pool
+        ...
+        ce.Stack = buffer.String();
+    endif
+
+    :return ce;
+}
+stop
+@enduml
